@@ -21,7 +21,6 @@
 #include <tf/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 
-#include "std_srvs/Trigger.h"
 
 #define ERR_DISTANCE 5
 
@@ -39,7 +38,6 @@ std_msgs::String msg_etat;
 void commandeCallback(const nav_msgs::Path::ConstPtr& msg_path){
   //recupere les waypoints (matrice 2xn)
  msg_waypoints = msg_path->poses;
-  //ROS_INFO("waypoints received from target");
 }
 
 void vectXCallback(const geometry_msgs::PoseStamped::ConstPtr& msg_helios){
@@ -52,19 +50,11 @@ void isOkayCallback(const std_msgs::Bool::ConstPtr& msg_isOkay){
   //recupere l'etat ok ou non de la commande
   isOkay = msg_isOkay->data;
 }
-//a modif en clinet
+
 void EtatCallback(const std_msgs::String::ConstPtr& msg_etat_commande){
   //recupere le string du l'état voulu par la commande
   etat_commande = msg_etat_commande->data;
 }
-
-bool serviceEtatCallback(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res){
-  //renvoi l'état present à la commande
-  res.success = true;
-  res.message = msg_etat.data;
-  return true;
-}
-
 
 
 int main(int argc, char **argv){
@@ -80,14 +70,11 @@ int main(int argc, char **argv){
     //Ecoute sur
     ros::Subscriber vectX_sub = n.subscribe("Pose_vect_X", 1, vectXCallback);
     ros::Subscriber commande_sub = n.subscribe("Path_WayPoint", 1, commandeCallback);
-    ros::Subscriber is_okay_sub = n.subscribe("Bool_is_Okay", 1, isOkayCallback);
-
-    //????
-    ros::Subscriber etats_sub = n.subscribe("String_Etats", 1, EtatCallback);
-    ros::ServiceClient etat_client = n.serviceClient<std_srvs::Trigger>("String_etats_client");
+    ros::Subscriber is_okay_sub = n.subscribe("Bool_is_OK", 1, isOkayCallback);
+    ros::Subscriber etat_sub = n.subscribe("String_Etat", 1, EtatCallback);
 
     //Publie sur
-    ros::Publisher etats_pub = n.advertise<std_msgs::String>("Etats", 1);
+    ros::Publisher etats_pub = n.advertise<std_msgs::String>("String_Etat_Retour", 1);
     ros::Publisher direction_pub = n.advertise<geometry_msgs::PoseArray>("Path_Direction", 1);
     ros::Publisher num_wpt_pub = n.advertise<std_msgs::Int64>("Numero", 1);
 
@@ -97,64 +84,47 @@ int main(int argc, char **argv){
     msg_num_wpts.data = 0;
     std::string etat_precedant = "Idle";
     msg_etat.data = "Idle"; //fsm state debut : Idle
-    std_srvs::Trigger srv;
-
 
     while(ros::ok()){
-        //ROS_INFO("noeud lance");
 
       if (isOkay == 1){
         lenght_wpts = msg_waypoints.size();
-
-
-        //mise à jour de l'état par service
-        //??????????
-        if(etat_client.call(srv)){// appel du Service
-          etat_commande = srv.response.message.c_str();
-        }else{
-          ROS_ERROR("FAILED to call service");
-        }
 
         //changement d'etat FSM
         if (etat_precedant == "Idle" && etat_commande == "Mission"){
           msg_etat.data = "Mission";
           etat_precedant = "Mission";
-          ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
 
         }else if (etat_precedant == "Sleep"){
           if (etat_commande == "Reset"){
             msg_etat.data = "Reset";
             etat_precedant = "Reset";
-            ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
           }else if (etat_commande == "Mission"){
             msg_etat.data = "Mission";
             etat_precedant = "Mission";
-            ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
           }
 
         }else if (etat_precedant == "Reset" && etat_commande == "Idle"){
             msg_etat.data = "Idle";
             etat_precedant = "Idle";
-            ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
 
         }else if (etat_precedant == "Mission"){
           if (etat_commande == "Sleep"){
             msg_etat.data = "Sleep";
             etat_precedant = "Sleep";
-            ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
           }else if (etat_commande == "Reset"){
             msg_etat.data = "Reset";
             etat_precedant = "Reset";
-            ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
           }
 
           //???????
           //if (i >= lenght_wpts) { //pas de waypoints disponibles
            // msg_etat.data = "attente_points"; //fsm state Sleep???
-           // ros::ServiceServer service = n.advertiseService("String_etat_srv", serviceEtatCallback);
           //}
-        }
 
+        }
+        //Publication des messages
+        etats_pub.publish(msg_etat);
 
         //en mode Reset : recommence depuis le debut de la liste de waypoints
         if (msg_etat.data == "Reset"){
@@ -166,11 +136,6 @@ int main(int argc, char **argv){
 
           if (lenght_wpts >= 2){
 
-            /*
-            helios[0] = 7; //pour test, à supprimer en reel
-            helios[1] = 6;
-            */
-
             //recuperation des coordonnées pour le suivi de ligne
             a[0] = msg_waypoints[i].pose.position.x;
             a[1] = msg_waypoints[i].pose.position.y;
@@ -181,7 +146,8 @@ int main(int argc, char **argv){
             //creation du message pour le suivi de ligne : [[a], [b]]
             geometry_msgs::PoseArray msg_ab;
             msg_ab.header.stamp = ros::Time::now();
-            for (j = 0 ; j < 1; j++){
+
+            for (j = 0 ; j < 2; j++){
               geometry_msgs::Pose tmp;
               tmp.position.x = a[0];
               tmp.position.y = a[1];
@@ -205,14 +171,13 @@ int main(int argc, char **argv){
 
             //Publication des messages
             direction_pub.publish(msg_ab);
-            etats_pub.publish(msg_etat);
             num_wpt_pub.publish(msg_num_wpts);
+
           }// fin if taille tableau <=2
-
-
-        } //fin if mode Mission 
+        } //fin if mode Mission
 
       } //fin if isOkay
+
       ros::spinOnce();
       loop_rate.sleep();
 

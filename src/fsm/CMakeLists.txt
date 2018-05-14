@@ -144,9 +144,11 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/fsm_node.cpp)
+add_executable(Path_test src/test_path_pour_fsm.cpp)
+add_executable(Etat_test src/test_etat_pour_fsm.cpp)
+add_executable(VectX_test src/test_vectX_pour_fsm.cpp)
+add_executable(Bool_is_OK src/test_Bool_OK_pour_fsm.cpp)
 add_executable(FSM src/fsm.cpp)
-add_executable(Path_test src/test.cpp)
-
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -162,8 +164,11 @@ add_executable(Path_test src/test.cpp)
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
-target_link_libraries(FSM ${catkin_LIBRARIES})
 target_link_libraries(Path_test ${catkin_LIBRARIES})
+target_link_libraries(Etat_test ${catkin_LIBRARIES})
+target_link_libraries(VectX_test ${catkin_LIBRARIES})
+target_link_libraries(Bool_is_OK ${catkin_LIBRARIES})
+target_link_libraries(FSM ${catkin_LIBRARIES})
 
 #############
 ## Install ##
