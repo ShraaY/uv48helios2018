@@ -22,19 +22,19 @@
 #include <tf2/LinearMath/Quaternion.h>
 
 
-#define ERR_DISTANCE 5
-
-
-std::vector<geometry_msgs::PoseStamped> msg_waypoints;
+#define ERR_DISTANCE 2 //erreur acceptée de distance pour le chgt de point a atteindre
 std::array<float, 2> a = { 0, 0 };
 std::array<float, 2> b = { 0, 0 };
 std::array<float, 2> helios = { 0, 0 };
-bool isOkay = 1;
+
+std::vector<geometry_msgs::PoseStamped> msg_waypoints;
+bool isOkay = 1; // 1 -> fonctionnement ok
 std::string etat_commande;
 std_msgs::String msg_etat;
+bool commande_auto = 1; // 1 -> commande en auto
 
 
-// fonctions appelées par les subscribers
+//fonctions appelées par les subscribers
 void commandeCallback(const nav_msgs::Path::ConstPtr& msg_path){
   //recupere les waypoints (matrice 2xn)
  msg_waypoints = msg_path->poses;
@@ -55,7 +55,10 @@ void EtatCallback(const std_msgs::String::ConstPtr& msg_etat_commande){
   //recupere le string du l'état voulu par la commande
   etat_commande = msg_etat_commande->data;
 }
-
+void ManuelAutoCallback(const std_msgs::Bool::ConstPtr& msg_manuel_auto){
+  //recupere l'état de la commande : 1 = automatique, 0 = manuel (?)
+  commande_auto = msg_manuel_auto->data;
+}
 
 int main(int argc, char **argv){
 
@@ -69,14 +72,16 @@ int main(int argc, char **argv){
 
     //Ecoute sur
     ros::Subscriber vectX_sub = n.subscribe("Pose_vect_X", 1, vectXCallback);
-    ros::Subscriber commande_sub = n.subscribe("Path_WayPoint", 1, commandeCallback);
+    ros::Subscriber commande_sub = n.subscribe("Path_WayPoints", 1, commandeCallback);
     ros::Subscriber is_okay_sub = n.subscribe("Bool_is_OK", 1, isOkayCallback);
     ros::Subscriber etat_sub = n.subscribe("String_Etat", 1, EtatCallback);
+    ros::Subscriber commande_auto_sub = n.subscribe("Bool_Etat", 1, ManuelAutoCallback);
+
 
     //Publie sur
     ros::Publisher etats_pub = n.advertise<std_msgs::String>("String_Etat_Retour", 1);
     ros::Publisher direction_pub = n.advertise<geometry_msgs::PoseArray>("Path_Direction", 1);
-    ros::Publisher num_wpt_pub = n.advertise<std_msgs::Int64>("Numero", 1);
+    ros::Publisher num_wpt_pub = n.advertise<std_msgs::Int64>("numero", 1);
 
     ros::Rate loop_rate(20);
 
@@ -87,7 +92,7 @@ int main(int argc, char **argv){
 
     while(ros::ok()){
 
-      if (isOkay == 1){
+      if (isOkay == 1 && commande_auto == 1){
         lenght_wpts = msg_waypoints.size();
 
         //changement d'etat FSM
@@ -116,14 +121,16 @@ int main(int argc, char **argv){
             msg_etat.data = "Reset";
             etat_precedant = "Reset";
           }
-
-          //???????
+          //si nb de point courant hors tableau waypoints donnés
+          //mise en "Sleep" ou "attente_points"???
           //if (i >= lenght_wpts) { //pas de waypoints disponibles
-           // msg_etat.data = "attente_points"; //fsm state Sleep???
+            //msg_etat.data = "attente_points"; //"Sleep"???
+            //etat_precedant = "attente_points"; //"Sleep"???
+            //i = 0; //???
           //}
 
         }
-        //Publication des messages
+        //Publication du message Etat courant
         etats_pub.publish(msg_etat);
 
         //en mode Reset : recommence depuis le debut de la liste de waypoints
@@ -173,10 +180,10 @@ int main(int argc, char **argv){
             direction_pub.publish(msg_ab);
             num_wpt_pub.publish(msg_num_wpts);
 
-          }// fin if taille tableau <=2
+          }// fin if taille tableau de pts à suivre >=2
         } //fin if mode Mission
 
-      } //fin if isOkay
+      } //fin if isOkay et commande_auto
 
       ros::spinOnce();
       loop_rate.sleep();

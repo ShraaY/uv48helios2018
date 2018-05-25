@@ -1,7 +1,3 @@
 <launch>
-    <node name= "test_path_pour_fsm" pkg= "fsm" type= "Path_test"/>
-    <node name= "test_etat_pour_fsm" pkg= "fsm" type= "Etat_test"/>
-    <node name= "test_vectX_pour_fsm" pkg= "fsm" type= "VectX_test"/>
-    <node name= "test_Bool_OK_pour_fsm" pkg= "fsm" type= "Bool_is_OK"/>
-    <node name= "fsm" pkg= "fsm" type= "FSM" output="screen"/>
+    <node name= "fsm" pkg= "fsm" type= "FSM"/>
 </launch>
